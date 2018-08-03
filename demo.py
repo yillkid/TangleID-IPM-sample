@@ -9,7 +9,7 @@ from random import SystemRandom
 host_url = "http://localhost:8000"
 
 msg_claim = {"extension":"tangleid", "command":"new_claim","uuid": \
-"V9TCFLAOGGTAQATTJBLABAG9WY","addr":"","next_addr":"", "msg":"TestingMessage", "sign":""}
+"V9TCFLAOGGTAQATTJBLABAG9WY","channel":"","next_channel":"", "msg":"TestingMessage", "sign":""}
 msg_get_all_claims_in_channel = {"extension":"tangleid", "command":"get_all_claims_in_channel","channel": ""}
 msg_get_claim_info = {"command":"get_claim_info","hash_txn":""}
 
