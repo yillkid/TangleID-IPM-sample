@@ -2,16 +2,16 @@ import M2Crypto
 import M2Crypto.BN as BN
 import os
 import json
-from tangleid import new_claim, get_claim_info, get_all_claims_in_channel
+from ipm_utility import new_claim, get_claim_info, get_all_claims_in_channel
 import time
 from random import SystemRandom
 
 host_url = "http://localhost:8000"
 
-msg_claim = {"extension":"tangleid", "command":"new_claim","uuid": \
+msg_claim = {"extension":"ipm", "command":"new_claim","uuid": \
 "V9TCFLAOGGTAQATTJBLABAG9WY","channel":"","next_channel":"", "msg":"TestingMessage", "sign":""}
-msg_get_all_claims_in_channel = {"extension":"tangleid", "command":"get_all_claims_in_channel","channel": ""}
-msg_get_claim_info = {"command":"get_claim_info","hash_txn":""}
+msg_get_all_claims_in_channel = {"extension":"ipm", "command":"get_all_claims_in_channel","channel": ""}
+msg_get_claim_info = {"extension":"tangleid", "command":"get_claim_info","hash_txn":""}
 
 def addr_generate(length):
     alphabet = u'9ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -49,12 +49,21 @@ def generate_secure_msg(A_private_key, B_public_key, message):
     rsa1 = M2Crypto.RSA.load_pub_key_bio(buf)
     cipher_message = rsa1.public_encrypt(message, padding)
     # Use A's private key to sign the 'cipher_message'
+#    digest1 = get_data_digest(cipher_message)
+#    rsa2 = M2Crypto.RSA.load_key_string(A_private_key)
+#    signature = rsa2.sign(digest1, 'sha256')
+
+    return cipher_message
+
+def sign_the_msg(A_private_key, cipher_message):
+    # Use A's private key to sign the 'cipher_message'
     digest1 = get_data_digest(cipher_message)
     rsa2 = M2Crypto.RSA.load_key_string(A_private_key)
     signature = rsa2.sign(digest1, 'sha256')
-    return cipher_message, signature
 
-def read_secure_msg(A_public_key, B_private_key, cipher_message, signature):
+    return signature
+
+def read_secure_msg(A_public_key, B_private_key, cipher_message, signature = ""):
     try:
         # Use A's public key to verify 'signature'
         buf = M2Crypto.BIO.MemoryBuffer('')
@@ -62,7 +71,8 @@ def read_secure_msg(A_public_key, B_private_key, cipher_message, signature):
         rsa3 = M2Crypto.RSA.load_pub_key_bio(buf)                
         # Verify
         digest2 = get_data_digest(cipher_message)
-        rsa3.verify(digest2, signature, 'sha256')
+        if signature != "":
+            rsa3.verify(digest2, signature, 'sha256')
         # Use B's private key to decrypt 'cipher_message'
         rsa4 = M2Crypto.RSA.load_key_string(B_private_key)        
         padding = M2Crypto.RSA.pkcs1_oaep_padding
@@ -92,16 +102,19 @@ if __name__ == '__main__':
     raw_input("Press Enter to continue...")
 
     # A is sender, B is receiver
-    msg_claim['addr'] = addr_generate(26)
-    msg_claim['next_addr'] = addr_generate(26)
+    msg_claim['channel'] = addr_generate(26)
+    msg_claim['next_channel'] = addr_generate(26)
 
     print "A plan to issue B a claim : " + str(msg_claim)
     raw_input("Press Enter to continue...")
 
     # Sender's behavior
-    cipher_msg, signature = generate_secure_msg(A_priv_key, B_pub_key, str(msg_claim['msg']))
+    cipher_msg = generate_secure_msg(A_priv_key, B_pub_key, str(msg_claim['msg']))
+    signature = sign_the_msg(A_priv_key, cipher_msg)
+    cipher_next_channel = generate_secure_msg(A_priv_key, B_pub_key, str(msg_claim['next_channel']))
     msg_claim['msg'] = cipher_msg.encode('base64')
     msg_claim['sign'] = signature.encode('base64')
+    msg_claim['next_channel'] = cipher_next_channel.encode('base64')
 
     print "After encrypt the message, the claim : " + str(msg_claim)
     raw_input("Press Enter to continue...")
@@ -112,8 +125,8 @@ if __name__ == '__main__':
     raw_input("Press Enter to continue...")
 
     # Receiver's behavior
-    print "B search txn hash in channel (IOTA ADDRESS) ... " + str(msg_claim['addr'])
-    msg_get_all_claims_in_channel['channel'] = msg_claim['addr']
+    print "B search txn hash in channel (IOTA ADDRESS) ... " + str(msg_claim['channel'])
+    msg_get_all_claims_in_channel['channel'] = msg_claim['channel']
 
     str_claims = get_all_claims_in_channel(host_url, msg_get_all_claims_in_channel)
 
@@ -126,6 +139,9 @@ if __name__ == '__main__':
 
     claim_json = json.loads(claim_info)
 
-    plain_text = read_secure_msg(A_pub_key, B_priv_key, claim_json['msg'].decode('base64'), claim_json['sign'].decode('base64'))
-    print "B verify signature OK and got claim: " + str(plain_text)
+    plain_text_msg = read_secure_msg(A_pub_key, B_priv_key, claim_json['msg'].decode('base64'), claim_json['sign'].decode('base64'))
+    plain_text_next_channel = read_secure_msg(A_pub_key, B_priv_key, claim_json['next_channel'].decode('base64'))
+
+    print "B verify signature OK and got claim: " + str(plain_text_msg)
+    print "B verify signature OK and got next_channel: " + str(plain_text_next_channel)
 
