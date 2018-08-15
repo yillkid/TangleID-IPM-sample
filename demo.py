@@ -48,10 +48,6 @@ def generate_secure_msg(A_private_key, B_public_key, message):
     buf.write(B_public_key)
     rsa1 = M2Crypto.RSA.load_pub_key_bio(buf)
     cipher_message = rsa1.public_encrypt(message, padding)
-    # Use A's private key to sign the 'cipher_message'
-#    digest1 = get_data_digest(cipher_message)
-#    rsa2 = M2Crypto.RSA.load_key_string(A_private_key)
-#    signature = rsa2.sign(digest1, 'sha256')
 
     return cipher_message
 
